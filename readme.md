@@ -1,12 +1,19 @@
 # 1. CÀI ĐẶT ELK 
 
-[Tham khảo.](https://www.linuxtechi.com/how-to-install-elk-stack-on-ubuntu/)
+[Tham khảo 1.](https://www.linuxtechi.com/how-to-install-elk-stack-on-ubuntu/)
 
-```
-sudo systemctl status elasticsearch
-sudo systemctl status kibana
-sudo systemctl status logstash
-sudo systemctl status filebeat
+```bash
+sudo systemctl status elasticsearch # 8.19.11
+# curl -X GET "localhost:9200"
+
+sudo systemctl status kibana # 8.19.11
+# curl -X GET "localhost:5601/api/status"
+
+sudo systemctl status logstash # 8.19.11
+# /usr/share/logstash/bin/logstash --version
+
+sudo systemctl status filebeat # 8.19.11
+# filebeat version
 ```
 
 ## 1.1 CÀI VMTOOLS
@@ -380,4 +387,175 @@ sudo systemctl status filebeat --no-pager
 
 Đã cài thành công.
 
+# 2. THU THẬP LOG
+
+[Tham khảo 2.1.](https://attt.mae.gov.vn/Pages/cach-cai-dat-thu-thap-log-he-thong-elk-tren-may-client.aspx)
+
+[Tham khảo 2.2](https://youtu.be/D7KAr5tZpEw?si=pA9oZLCXuwAiHvZm)
+
+## 2.1. TRÊN UBUTU
+
+Cài đặt `filebeat` tại [đây](https://www.elastic.co/downloads/beats/filebeat) (nếu cài đặt offline) hoặc cài đặt trông như ở dưới đây. 
+
+**Bước 1:** Thêm GPG key của Elastic:
+
+```bash
+curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | \
+sudo gpg --dearmor -o /usr/share/keyrings/elastic-keyring.gpg
+```
+
+**Bước 2:** Thêm repository Elastic 8.x:
+
+```bash
+echo "deb [signed-by=/usr/share/keyrings/elastic-keyring.gpg] https://artifacts.elastic.co/packages/8.x/apt stable main" | \
+sudo tee /etc/apt/sources.list.d/elastic-8.x.list
+```
+
+**Bước 3:** Update lại apt:
+
+```bash
+sudo apt update
+```
+
+**Bước 4:** Cài đúng version 8.19.11:
+
+```bash
+sudo apt install filebeat=8.19.11 -y
+```
+
+
+Cấu hình filebeat bằng cách chỉnh sửa lại thư mục filebeat.yml trong thư mục filebeat, trỏ về máy chủ đích (ở TH cài đặt là máy chủ `172.16.1.3`).
+
+```bash
+cd /etc/filbeat
+nano filebeat.yml
+```
+
+![alt text](IMG/2/ubutu/image-1.png)
+
+Cấu hình để trỏ về máy chủ kibana của hệ thống.
+
+![alt text](IMG/2/ubutu/image-2.png)
+
+Để lấy log system của hệ thống sử dụng câu lệnh:
+
+```bash
+filebeat modules enable system
+```
+
+![alt text](IMG/2/ubutu/image-6.png)
+
+Bật các module muốn filebeat hỗ trợ lấy log về hệ thống , để kiểm tra các module filebeat đang hỗ trợ sử dụng câu lệnh:
+
+```bash
+filebeat modules list
+```
+
+![alt text](IMG/2/ubutu/image-7.png)
+
+Mở file cấu hình system module và bật syslog + auth:
+
+```bash
+sudo nano /etc/filebeat/modules.d/system.yml
+```
+
+![alt text](IMG/2/ubutu/image-5.png)
+
+Test config trước khi chạy và chạy lại
+
+```bash
+sudo filebeat test config
+
+# sudo filebeat -e
+sudo systemctl restart filebeat
+sudo systemctl enable filebeat
+```
+
+
+Khởi động filebeat sử dụng các câu lệnh sau:
+
+```bash
+sudo chown root:root /etc/filebeat/filebeat.yml
+sudo chown -R root:root /etc/filebeat/modules.d
+
+sudo filebeat -e
+```
+
+Khi ta đăng nhập vào máy Ubutu server thì có trả về log ở trên ELK như sau:
+
+![alt text](IMG/2/ubutu/image-8.png)
+
+![alt text](IMG/2/ubutu/image-9.png)
+
+
+## 2.2. TRÊN WINDOWS SERVER
+
+Bước 1: Tải Winlogbeat (đúng version 8.19.11).
+
+[Link tải winlogbeat version 8.19.11.](https://artifacts.elastic.co/downloads/beats/winlogbeat/winlogbeat-8.19.11-windows-x86_64.zip)
+
+Bước 2: Chỉnh cấu hình.
+
+Mở:
+
+```txt
+C:\Program Files\Winlogbeat\winlogbeat.yml
+```
+
+Cấu hình gửi về ELK
+
+```bash
+# Nếu gửi thẳng Elasticsearch:
+
+output.elasticsearch:
+  hosts: ["http://172.16.1.3:9200"]
+
+# Nếu có user/pass:
+output.elasticsearch:
+  hosts: ["http://172.16.1.3:9200"]
+  username: "elastic"
+  password: "your_password"
+```
+
+![alt text](IMG/2/winserver/image.png)
+
+Bước 3: Chọn log cần thu thập.
+
+Mặc định sẽ thu:
+
+![alt text](IMG/2/winserver/image-1.png)
+
+Nếu muốn giám sát login (quan trọng cho SOC):
+
+Security log là bắt buộc.
+
+Bước 4: Cài service.
+
+Mở PowerShell (Run as Administrator):
+
+```bash
+cd "C:\Program Files\Winlogbeat"
+.\install-service-winlogbeat.ps1
+```
+
+![alt text](IMG/2/winserver/image-2.png)
+
+Bước 5: Start service.
+
+```bash
+Start-Service winlogbeat
+Get-Service winlogbeat
+```
+
+Phải thấy: `Status: Running`.
+
+![alt text](IMG/2/winserver/image-3.png)
+
+Bước 6: Kiểm tra log lên Kibana
+
+Vào `http://172.16.1.3:5601` -> Discover -> `winlogbeat-*` -> Thấy log tên của máy winserver là thành công.
+
+![alt text](IMG/2/winserver/image-4.png)
+
+![alt text](IMG/2/winserver/image-5.png)
 
